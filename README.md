@@ -1,23 +1,20 @@
 # DSE Market Poller 
 
-A lightweight stock scraper and database loader for the Dhaka Stock Exchange (DSE). This project scrapes market snapshots (ticker, price, volume) on a schedule and inserts them into a Supabase Postgres table.
+A lightweight stock scraper and database loader for the Dhaka Stock Exchange (DSE). This project fetches market snapshots (ticker, price, volume) on a schedule using the `bdshare` library and inserts them into a Supabase Postgres table.
 
 ## Features
 
-- **Automated Scraping**: Periodically scrapes market snapshots from the configured source.
+- **Automated Scraping**: Periodically retrieves live market data using the `bdshare` API.
 - **Supabase Integration**: Seamlessly saves snapshot data (ticker, price, and volume) into a Supabase database.
 - **GitHub Actions Scheduled Runs**: Run the scraper automatically every 5 minutes or trigger it manually using GitHub Actions.
-- **Resilient Fallback**: Falls back to a mock dataset when HTML parsing fails to ensure validation of the insertion logic.
+- **Resilient Fallback**: Falls back to a mock dataset when the API fails to ensure validation of the insertion logic.
 
 ---
 
 ## Repository Structure
 
-- [scraper.py](file:///d:/Project/dse-market-poller/scraper.py) — The core Python script containing:
-  - [fetch_market_snapshots](file:///d:/Project/dse-market-poller/scraper.py#L19): Fetches market rows from the target URL and parses them.
-  - [insert_snapshots](file:///d:/Project/dse-market-poller/scraper.py#L70): Connects to Supabase and inserts snapshots.
-  - [main](file:///d:/Project/dse-market-poller/scraper.py#L92): Script entrypoint.
-- [requirements.txt](file:///d:/Project/dse-market-poller/requirements.txt) — Python dependencies (`supabase`, `requests`, `beautifulsoup4`, `lxml`).
+- [scraper.py](file:///d:/Project/dse-market-poller/scraper.py) — The core Python script containing the fetch and insert logic.
+- [requirements.txt](file:///d:/Project/dse-market-poller/requirements.txt) — Python dependencies (`supabase`, `pandas`, `bdshare`).
 - [create_dse_market_snapshots.sql](file:///d:/Project/dse-market-poller/sql/create_dse_market_snapshots.sql) — SQL DDL script to create the Supabase database table and query index.
 - [scraper.yml](file:///d:/Project/dse-market-poller/.github/workflows/scraper.yml) — GitHub Actions workflow for scheduled and manual scraper execution.
 - [LICENSE](file:///d:/Project/dse-market-poller/LICENSE) — Apache License 2.0 terms.
@@ -41,19 +38,12 @@ Alternatively, you can run the SQL script using `psql`:
 psql "postgresql://postgres:<PASSWORD>@<HOST>:5432/postgres" -f sql/create_dse_market_snapshots.sql
 ```
 
-The script:
-
-- Creates a `public.dse_market_snapshots` table.
-- Disables Row Level Security (RLS) on that table (allowing writes via the Supabase `service_role` key).
-- Creates an index on `(ticker, created_at DESC)` for efficient querying.
-
 ### 2. Configure Environment Variables
 
 The scraper requires access to Supabase. Configure the following environment variables:
 
 - `SUPABASE_URL`: Your Supabase project API URL (e.g., `https://<project-ref>.supabase.co`).
 - `SUPABASE_SERVICE_ROLE_KEY`: The Supabase `service_role` API key (sensitive, bypasses RLS).
-- `TARGET_URL` *(Optional)*: The page to scrape (defaults to `https://example.com/dse`).
 
 > [!WARNING]
 > Keep the `SUPABASE_SERVICE_ROLE_KEY` secret. Never commit it to version control or expose it publicly.
@@ -86,13 +76,11 @@ To run the scraper locally:
      ```bash
      export SUPABASE_URL="https://<project-ref>.supabase.co"
      export SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>"
-     export TARGET_URL="https://<real-dse-page-or-api>"
      ```
    - **Windows (PowerShell):**
      ```powershell
      $env:SUPABASE_URL="https://<project-ref>.supabase.co"
      $env:SUPABASE_SERVICE_ROLE_KEY="<YOUR_SERVICE_ROLE_KEY>"
-     $env:TARGET_URL="https://<real-dse-page-or-api>"
      ```
 4. **Run the scraper:**
 
@@ -100,18 +88,7 @@ To run the scraper locally:
    python scraper.py
    ```
 
-   *Note: If the page cannot be fetched or parsed, the script will log a warning and fall back to mock data to verify your database connection/insertion code.*
-
----
-
-## HTML Selectors Customization
-
-The CSS selectors in [scraper.py](file:///d:/Project/dse-market-poller/scraper.py) are placeholders. You should modify them in the [fetch_market_snapshots](file:///d:/Project/dse-market-poller/scraper.py#L19) function to match the target site's HTML layout:
-
-- `soup.select("table.market-data tbody tr")` (Row Selector)
-- `r.select_one("td.ticker")` (Ticker element)
-- `r.select_one("td.price")` (Price element)
-- `r.select_one("td.volume")` (Volume element)
+   *Note: If the market API cannot be fetched, the script will log a warning and fall back to mock data to verify your database connection/insertion code.*
 
 ---
 
