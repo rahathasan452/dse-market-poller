@@ -1,0 +1,4 @@
+supabase
+requests
+beautifulsoup4
+lxml
