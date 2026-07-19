@@ -37,18 +37,36 @@ def fetch_intraday_ohlcv() -> pd.DataFrame:
         logger.exception("Failed to fetch intraday data: %s", e)
         return pd.DataFrame()
 
+from core.amarstock import fetch_amarstock_indices
+
 def main():
     parser = argparse.ArgumentParser(description="DSE Market Poller (Intraday)")
     args = parser.parse_args()
 
     logger.info("Running in Intraday mode...")
-    df = fetch_intraday_ohlcv()
+    
+    # 1. Fetch DSE stocks from bdshare
+    df_stocks = fetch_intraday_ohlcv()
+    
+    # 2. Fetch DSE indices from Amarstock
+    today_str = get_today_date_str()
+    logger.info("Fetching intraday indices from Amarstock...")
+    df_indices = fetch_amarstock_indices(today_str)
+    
+    # 3. Combine them
+    dataframes = []
+    if not df_stocks.empty:
+        dataframes.append(df_stocks)
+    if not df_indices.empty:
+        dataframes.append(df_indices)
         
-    if df.empty:
-        logger.warning("No data parsed. Exiting.")
+    if not dataframes:
+        logger.warning("No data parsed from either bdshare or Amarstock. Exiting.")
         return
+        
+    df = pd.concat(dataframes, ignore_index=True)
 
-    logger.info("Fetched %d snapshots from DSE", len(df))
+    logger.info("Fetched %d total snapshots", len(df))
     
     client = get_supabase_client()
     upsert_snapshots(client, df, chunk_name="Intraday Snapshots")

@@ -4,8 +4,8 @@ A robust, fully automated stock scraper and historical database loader for the D
 
 ## Features
 
-- **Live Intraday Scraping**: Fetches the market status every 5 minutes during DSE market hours (Sunday-Thursday, 10:00 AM - 2:30 PM BD Time).
-- **Intelligent Historical Backfill**: Automatically detects gaps in your Supabase database and fetches any missing EOD data sequentially to ensure 100% data integrity without overwhelming DSE servers.
+- **Dual-Source Architecture**: Fetches live and historical stocks directly from DSE via `bdshare`, while intelligently sourcing the 4 core market indices (`00DSEX`, `00DS30`, `00DSES`, `00DSMEX`) from Amarstock for maximum reliability.
+- **Intelligent Historical Backfill**: Automatically detects gaps in your Supabase database and fetches missing EOD data sequentially (day-by-day for Amarstock, ticker-by-ticker for DSE) to ensure 100% data integrity without overwhelming servers.
 - **Supabase Integration**: Seamlessly saves snapshot data (ticker, price, volume, and date) into Supabase using optimized bulk upserts.
 - **GitHub Actions Scheduled Runs**: Fully automated entirely within GitHub Actions. Designed to run only during market hours to dramatically save Action runner minutes.
 - **CSV Seed Importer**: A utility script to instantly import massive legacy CSV datasets directly into the database.
@@ -19,8 +19,9 @@ The project has been heavily modularized to prevent code duplication:
 - **`core/`** — Shared library package.
   - `db.py`: Handles Supabase connection and optimized batch upserting.
   - `dse.py`: Contains DSE-specific monkey patches (like disabling invalid SSL certificates).
-- **`intraday_scraper.py`** — The 5-minute poller that runs during market hours to fetch live prices.
-- **`backfill_gaps.py`** — The intelligent historical scraper. It checks the database for missing days per ticker and fetches the gap data sequentially using small delays (mimicking the AmiBroker plugin architecture).
+  - `amarstock.py`: Specialized API fetcher and parser for Amarstock index data.
+- **`intraday_scraper.py`** — The 5-minute poller that runs during market hours to fetch live prices from both DSE (stocks) and Amarstock (indices).
+- **`backfill_gaps.py`** — The intelligent historical scraper. It isolates missing dates for Amarstock indices and DSE stocks independently, sequentially pulling gaps to mimic robust desktop software architectures.
 - **`import_historical.py`** — A script to upload your `merged_data.csv` seed files.
 - **`sql/`** — Contains the SQL DDL scripts to create the required tables and views in Supabase.
 - **`.github/workflows/`** — GitHub Actions configurations for both the intraday and backfill scrapers.
@@ -91,6 +92,51 @@ To enable these in your own GitHub repository:
    - `SUPABASE_SERVICE_ROLE_KEY`
 
 Once the secrets are added, the actions will seamlessly trigger on their schedule and keep your database perfectly in sync.
+
+---
+
+---
+
+## How to Access and Use the Scraped Data
+
+Once the data is saved in Supabase, you can easily use it as a data source in other tools. Here are the two most common setup methods:
+
+### Method 1: Connecting via PostgreSQL ODBC Driver (For AmiBroker / Excel)
+An ODBC connection allows desktop applications to connect directly to your database.
+
+1. **Download & Install**: Visit [psqlODBC Downloads](https://www.postgresql.org/ftp/odbc/versions/msi/) and download the MSI installer matching your Windows architecture (64-bit or 32-bit).
+2. **Add a System DSN**:
+   * Open **ODBC Data Sources** in Windows.
+   * Go to **System DSN** -> **Add...** -> **PostgreSQL Unicode**.
+   * Fill in your Supabase connection parameters (found in Supabase under *Settings* -> *Database*):
+     * **Data Source**: `Supabase_DSE`
+     * **Server**: `db.eepwcezwzzlnzqowniyd.supabase.co`
+     * **Port**: `5432`
+     * **Database**: `postgres`
+     * **User Name**: `postgres`
+     * **Password**: `[Your Database Password]`
+3. **Connect**:
+   * **Excel**: Go to *Data* -> *Get Data* -> *From Other Sources* -> *From ODBC*. Select `Supabase_DSE`.
+   * **AmiBroker**: Use an ODBC SQL plugin with connection string: `DSN=Supabase_DSE;Uid=postgres;Pwd=[Your Password];`
+
+### Method 2: Accessing via Auto-Generated REST API
+Supabase generates a REST API for you out of the box.
+
+* **Base URL**: `https://<your-project-id>.supabase.co/rest/v1/dse_market_snapshots`
+* **Query Format**: Send a `GET` request with your `apikey` and `Authorization` headers:
+  ```bash
+  curl -X GET "https://<your-project-id>.supabase.co/rest/v1/dse_market_snapshots?ticker=eq.00DSEX&order=date.desc&limit=10" \
+       -H "apikey: <YOUR_ANON_KEY>" \
+       -H "Authorization: Bearer <YOUR_ANON_KEY>"
+  ```
+* **Python Integration**:
+  ```python
+  import requests
+  url = "https://eepwcezwzzlnzqowniyd.supabase.co/rest/v1/dse_market_snapshots"
+  headers = { "apikey": "YOUR_ANON_KEY", "Authorization": "Bearer YOUR_ANON_KEY" }
+  params = { "ticker": "eq.00DSEX", "order": "date.desc", "limit": 10 }
+  response = requests.get(url, headers=headers, params=params).json()
+  ```
 
 ---
 
