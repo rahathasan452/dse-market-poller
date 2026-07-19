@@ -1,3 +1,4 @@
 supabase
 pandas
 bdshare
+python-dotenv
