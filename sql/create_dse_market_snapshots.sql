@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS public.dse_market_snapshots (
   volume BIGINT
 );
 
--- Disable Row Level Security so service_role can write without RLS
-ALTER TABLE public.dse_market_snapshots DISABLE ROW LEVEL SECURITY;
+-- Enable Row Level Security (service_role still bypasses this)
+ALTER TABLE public.dse_market_snapshots ENABLE ROW LEVEL SECURITY;
 
 -- Helpful index for queries by ticker and recent snapshots
 CREATE INDEX IF NOT EXISTS idx_dse_market_snapshots_ticker_created_at
