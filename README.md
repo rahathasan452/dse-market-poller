@@ -1,4 +1,4 @@
-# DSE Market Poller 
+# DSE Market Poller
 
 A lightweight stock scraper and database loader for the Dhaka Stock Exchange (DSE). This project fetches market snapshots (ticker, price, volume) on a schedule using the `bdshare` library and inserts them into a Supabase Postgres table.
 
@@ -70,7 +70,7 @@ To run the scraper locally:
    pip install --upgrade pip
    pip install -r requirements.txt
    ```
-3. **Set the environment variables:**
+3. **Set the environ ment variables:**
 
    - **Linux/macOS:**
      ```bash
