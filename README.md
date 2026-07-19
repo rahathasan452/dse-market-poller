@@ -101,23 +101,46 @@ Once the secrets are added, the actions will seamlessly trigger on their schedul
 
 Once the data is saved in Supabase, you can easily use it as a data source in other tools. Here are the two most common setup methods:
 
-### Method 1: Connecting via PostgreSQL ODBC Driver (For AmiBroker / Excel)
-An ODBC connection allows desktop applications to connect directly to your database.
+### Method 1: Connecting via PostgreSQL ODBC Driver (For AmiBroker)
+An ODBC connection allows AmiBroker to connect directly to your Supabase database and pull charts instantly.
 
-1. **Download & Install**: Visit [psqlODBC Downloads](https://www.postgresql.org/ftp/odbc/versions/msi/) and download the MSI installer matching your Windows architecture (64-bit or 32-bit).
-2. **Add a System DSN**:
-   * Open **ODBC Data Sources** in Windows.
-   * Go to **System DSN** -> **Add...** -> **PostgreSQL Unicode**.
-   * Fill in your Supabase connection parameters (found in Supabase under *Settings* -> *Database*):
-     * **Data Source**: `Supabase_DSE`
-     * **Server**: `db.eepwcezwzzlnzqowniyd.supabase.co`
-     * **Port**: `5432`
-     * **Database**: `postgres`
-     * **User Name**: `postgres`
-     * **Password**: `[Your Database Password]`
-3. **Connect**:
-   * **Excel**: Go to *Data* -> *Get Data* -> *From Other Sources* -> *From ODBC*. Select `Supabase_DSE`.
-   * **AmiBroker**: Use an ODBC SQL plugin with connection string: `DSN=Supabase_DSE;Uid=postgres;Pwd=[Your Password];`
+**1. Install the Correct Driver**
+* Check if your AmiBroker is 32-bit or 64-bit (shown on the splash screen).
+* Visit [psqlODBC Downloads](https://www.postgresql.org/ftp/odbc/versions/msi/) and download the exact MSI installer matching your AmiBroker architecture (e.g., `psqlodbc_..._x86.zip` for 32-bit AmiBroker).
+
+**2. Add a System DSN**
+* Search Windows for **ODBC Data Sources** (Make sure to open the 32-bit version if your AmiBroker is 32-bit).
+* Go to **System DSN** -> **Add...** -> **PostgreSQL Unicode**.
+* Fill in your connection parameters (found in Supabase under *Settings* -> *Database*):
+  * **Data Source**: `Supabase_DSE`
+  * **Server**: `db.<your project id>.supabase.co`
+  * **Port**: `5432`
+  * **Database**: `postgres`
+  * **User Name**: `postgres`
+  * **Password**: `[Your Database Password]`
+* Click the **Test** button. It must say "Connection successful". Click Save.
+
+**3. Configure AmiBroker Database Settings**
+* Open AmiBroker -> **File** -> **New** -> **Database**.
+* Set Data Source to **ODBC/SQL Universal Data Plug-in**.
+* Click **Configure** and follow these **CRITICAL** steps exactly:
+  1. **DO NOT** click the "Pick ODBC source..." button. It generates bad strings.
+  2. Paste this exact string into the **Database (ODBC connection string)** box:
+     ```text
+     DSN=Supabase_DSE;Uid=postgres;Pwd=[Your Password];
+     ```
+  3. Set **Table name** to exactly: `dse_market_snapshots`
+  4. Change the dropdown fields in the **Field names (case sensitive)** section to match PostgreSQL's lowercase schema:
+     * **Symbol**: `ticker`
+     * **Date/Time**: `date`
+     * **Open**: `open`
+     * **High**: `high`
+     * **Low**: `low`
+     * **Close**: `close`
+     * **Volume**: `volume`
+     * **Open Int**: *(Leave blank)*
+  5. **UNCHECK** the "Use custom queries" box at the bottom.
+* Click **OK**, then click **Retrieve symbols**. Your charts will now load!
 
 ### Method 2: Accessing via Auto-Generated REST API
 Supabase generates a REST API for you out of the box.
