@@ -13,7 +13,21 @@ patch_dse_ssl()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-def get_today_date_str() -> str:
+def get_true_market_date() -> str:
+    """
+    Scrapes the DSE homepage to find the exact date the current market data belongs to.
+    This prevents assigning today's date if the script is run manually before the market opens.
+    """
+    try:
+        from bdshare import get_market_info
+        market_info = get_market_info()
+        if not market_info.empty:
+            raw_date = market_info.iloc[0]['Date']
+            dt = datetime.strptime(raw_date, '%d-%m-%Y')
+            return dt.strftime('%Y-%m-%d')
+    except Exception as e:
+        logger.warning(f"Could not fetch true market date, falling back to system date: {e}")
+    
     return datetime.today().strftime('%Y-%m-%d')
 
 def fetch_intraday_ohlcv() -> pd.DataFrame:
@@ -25,7 +39,7 @@ def fetch_intraday_ohlcv() -> pd.DataFrame:
         if df is None or df.empty:
             raise ValueError("bdshare returned an empty DataFrame.")
 
-        date_str = get_today_date_str()
+        date_str = get_true_market_date()
         df['date'] = date_str
         
         # 'open' is not provided in intraday, so we use 'ycp'
@@ -49,7 +63,7 @@ def main():
     df_stocks = fetch_intraday_ohlcv()
     
     # 2. Fetch DSE indices from Amarstock
-    today_str = get_today_date_str()
+    today_str = get_true_market_date()
     logger.info("Fetching intraday indices from Amarstock...")
     df_indices = fetch_amarstock_indices(today_str)
     

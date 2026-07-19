@@ -45,6 +45,16 @@ def upsert_snapshots(client, df, chunk_name=""):
             close_val = row.get('close') if 'close' in row and pd.notnull(row['close']) else row.get('ltp', '0')
             close_price = float(str(close_val).replace(',', ''))
             
+            if close_price <= 0:
+                continue
+                
+            if open_price == 0:
+                open_price = close_price
+            if high_price == 0:
+                high_price = close_price
+            if low_price == 0:
+                low_price = close_price
+                
             volume_price = int(float(str(row.get('volume', '0')).replace(',', '')))
             
             payload.append({
