@@ -28,8 +28,8 @@ CREATE OR REPLACE FUNCTION check_dse_price_alerts()
 RETURNS TRIGGER AS $$
 DECLARE
     alert_rec RECORD;
-    -- Set your Telegram Bot Token here if using pg_net trigger directly:
-    telegram_bot_token TEXT := 'YOUR_TELEGRAM_BOT_TOKEN';
+    -- Set your Telegram Bot Token here for pg_net trigger:
+    telegram_bot_token TEXT := '8878847897:AAFVdB0Pc4BAQbbwwShwQXRsLuycATKvQPI';
     msg TEXT;
     symbol TEXT;
 BEGIN

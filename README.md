@@ -12,6 +12,7 @@ This project fetches live intraday market snapshots and historical End-of-Day (E
 - ⚡ **Intelligent Historical Backfill**: Automatically detects missing dates in Supabase and fills historical gaps sequentially to ensure 100% data integrity.
 - 🤖 **Interactive Telegram Bot Manager**: Add, list, delete, and check stock prices directly from Telegram on your phone!
 - 🎯 **Dual Bracket Alerts (Take Profit & Stop Loss in 1 Command)**: Set both a target high price (Take Profit) and target low price (Stop Loss) simultaneously in a single command (`/add GP 280 240`).
+- 🗑️ **Flexible Multi-Delete**: Delete multiple alerts at once by IDs (`/del 4 5 6`), by stock ticker (`/del GP`), or clear all alerts (`/del all`).
 - 🔍 **Smart Ticker Autofill & Suggestions**: If you misspell or type a partial ticker (e.g. `/price SQU`), the bot presents clickable inline buttons with suggested tickers (`SQURPHARMA`, `SQUARETEXT`).
 - ⚡ **Zero GitHub Actions Compute Minutes for Alerts**: Notifications are evaluated and dispatched 100% inside Supabase using Postgres `pg_net` triggers and Edge Functions.
 - 🔄 **Automated GitHub Actions Workflows**: Intraday scraping runs automatically during Bangladesh market hours (Sun–Thu).
@@ -55,7 +56,9 @@ You can control your stock alerts directly from your phone:
 | `/add` | `/add GP 280 ABOVE` | Create a single target price alert |
 | `/add` | `/add SQURPHARMA 220 BELOW` | Create a single stop loss price alert |
 | `/list` | `/list` | View all active price alerts with IDs |
-| `/del` | `/del 3` | Delete an active price alert by ID |
+| `/del` | `/del 4 5 6` | **Multi-ID Delete:** Delete multiple alerts at once by ID |
+| `/del` | `/del GP` | **Ticker Delete:** Delete all active alerts for stock GP |
+| `/del` | `/del all` | **Bulk Delete:** Clear all active alerts |
 | `/price` | `/price BATBC` | Check current stock quote, high/low, and volume |
 | `/help` | `/help` | Display command help menu |
 
@@ -78,13 +81,14 @@ You can control your stock alerts directly from your phone:
 
 1. **Create Bot**: Message `@BotFather` on Telegram, send `/newbot`, and copy your **Bot Token**.
 2. **Deploy Edge Function**:
-   - Go to **Supabase Dashboard → Edge Functions** → Create function `telegram-bot`.
+   - Go to **Supabase Dashboard → Edge Functions** → Create function `telegram-bot` (or `dse_price_alert`).
    - Paste code from `supabase/functions/telegram-bot/index.ts`.
+   - Go to **Settings** → **Turn OFF Enforce JWT Verification** (so Telegram can reach your webhook).
    - Add Secret: `TELEGRAM_BOT_TOKEN = <your_bot_token>`.
-   - Copy the deployed function URL (e.g. `https://xyz.supabase.co/functions/v1/telegram-bot`).
+   - Copy the deployed function URL (e.g. `https://xyz.supabase.co/functions/v1/dse_price_alert`).
 3. **Set Telegram Webhook**:
    Open this URL in your browser:
-   `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/telegram-bot`
+   `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/dse_price_alert`
 
 ---
 
