@@ -1,168 +1,127 @@
-# DSE Market Poller
+# DSE Market Poller & Telegram Price Alert System 🚀
 
-A robust, fully automated stock scraper and historical database loader for the Dhaka Stock Exchange (DSE). This project fetches live intraday market snapshots and historical End-of-Day (EOD) data using the `bdshare` library, safely storing everything into a Supabase PostgreSQL database.
+A robust, fully automated stock scraper, historical database loader, and real-time Telegram price alert system for the Dhaka Stock Exchange (DSE). 
 
-## Features
-
-- **Dual-Source Architecture**: Fetches live and historical stocks directly from DSE via `bdshare`, while intelligently sourcing the 4 core market indices (`00DSEX`, `00DS30`, `00DSES`, `00DSMEX`) from Amarstock for maximum reliability.
-- **Intelligent Historical Backfill**: Automatically detects gaps in your Supabase database and fetches missing EOD data sequentially (day-by-day for Amarstock, ticker-by-ticker for DSE) to ensure 100% data integrity without overwhelming servers.
-- **Supabase Integration**: Seamlessly saves snapshot data (ticker, price, volume, and date) into Supabase using optimized bulk upserts.
-- **GitHub Actions Scheduled Runs**: Fully automated entirely within GitHub Actions. Designed to run only during market hours to dramatically save Action runner minutes.
-- **CSV Seed Importer**: A utility script to instantly import massive legacy CSV datasets directly into the database.
+This project fetches live intraday market snapshots and historical End-of-Day (EOD) data using `bdshare` and `Amarstock`, safely stores everything into a Supabase PostgreSQL database, and allows you to manage live stock price alerts directly from Telegram on your phone with zero GitHub Actions compute cost!
 
 ---
 
-## Repository Structure
+## ✨ Features
 
-The project has been heavily modularized to prevent code duplication:
-
-- **`core/`** — Shared library package.
-  - `db.py`: Handles Supabase connection and optimized batch upserting.
-  - `dse.py`: Contains DSE-specific monkey patches (like disabling invalid SSL certificates).
-  - `amarstock.py`: Specialized API fetcher and parser for Amarstock index data.
-- **`intraday_scraper.py`** — The 5-minute poller that runs during market hours to fetch live prices from both DSE (stocks) and Amarstock (indices).
-- **`backfill_gaps.py`** — The intelligent historical scraper. It isolates missing dates for Amarstock indices and DSE stocks independently, sequentially pulling gaps to mimic robust desktop software architectures.
-- **`import_historical.py`** — A script to upload your `merged_data.csv` seed files.
-- **`sql/`** — Contains the SQL DDL scripts to create the required tables and views in Supabase.
-- **`.github/workflows/`** — GitHub Actions configurations for both the intraday and backfill scrapers.
+- 📈 **Dual-Source Architecture**: Fetches live and historical stocks directly from DSE via `bdshare`, while intelligently sourcing the 4 core market indices (`00DSEX`, `00DS30`, `00DSES`, `00DSMEX`) from Amarstock.
+- ⚡ **Intelligent Historical Backfill**: Automatically detects missing dates in Supabase and fills historical gaps sequentially to ensure 100% data integrity.
+- 🤖 **Interactive Telegram Bot Manager**: Add, list, delete, and check stock prices directly from Telegram on your phone!
+- 🎯 **Dual Bracket Alerts (Take Profit & Stop Loss in 1 Command)**: Set both a target high price (Take Profit) and target low price (Stop Loss) simultaneously in a single command (`/add GP 280 240`).
+- 🔍 **Smart Ticker Autofill & Suggestions**: If you misspell or type a partial ticker (e.g. `/price SQU`), the bot presents clickable inline buttons with suggested tickers (`SQURPHARMA`, `SQUARETEXT`).
+- ⚡ **Zero GitHub Actions Compute Minutes for Alerts**: Notifications are evaluated and dispatched 100% inside Supabase using Postgres `pg_net` triggers and Edge Functions.
+- 🔄 **Automated GitHub Actions Workflows**: Intraday scraping runs automatically during Bangladesh market hours (Sun–Thu).
 
 ---
 
-## Getting Started
+## 📁 Repository Structure
+
+```text
+dse-market-poller/
+├── core/
+│   ├── db.py               # Supabase database client and bulk upsert helpers
+│   ├── dse.py              # DSE patch utilities (disabling invalid SSL certs)
+│   └── amarstock.py        # Amarstock index API fetcher & parser
+├── sql/
+│   ├── create_dse_market_snapshots.sql # Main OHLCV snapshots table schema
+│   ├── create_ticker_max_dates_view.sql# View tracking max scraped date per ticker
+│   └── create_price_alerts.sql         # Price alerts table schema & pg_net trigger
+├── supabase/
+│   └── functions/
+│       └── telegram-bot/
+│           └── index.ts    # Deno Edge Function handling Telegram bot commands, dual alerts & autocomplete
+├── .github/workflows/
+│   ├── scraper.yml         # 15-minute intraday market scraper workflow
+│   └── intelligent_backfill.yml # Daily historical EOD backfill workflow
+├── intraday_scraper.py     # Main 15-min live market scraper script
+├── backfill_gaps.py        # Historical gap detector & backfill script
+├── import_historical.py    # Seed CSV import script
+└── requirements.txt        # Python dependencies
+```
+
+---
+
+## 📲 Telegram Bot Commands
+
+You can control your stock alerts directly from your phone:
+
+| Command | Usage Example | Description |
+| :--- | :--- | :--- |
+| `/add` | `/add GP 280 240` | **Dual Bracket Alert:** Sets Take Profit (ABOVE 280) AND Stop Loss (BELOW 240) in 1 command! |
+| `/add` | `/add GP 280 ABOVE` | Create a single target price alert |
+| `/add` | `/add SQURPHARMA 220 BELOW` | Create a single stop loss price alert |
+| `/list` | `/list` | View all active price alerts with IDs |
+| `/del` | `/del 3` | Delete an active price alert by ID |
+| `/price` | `/price BATBC` | Check current stock quote, high/low, and volume |
+| `/help` | `/help` | Display command help menu |
+
+> 💡 **Autofill / Suggestions**: If you type `/price SQU`, the bot automatically suggests `SQURPHARMA` and `SQUARETEXT` via interactive inline buttons!
+
+---
+
+## 🚀 Quick Setup Guide
 
 ### 1. Database Setup (Supabase)
 
-You will need a Supabase project or any PostgreSQL instance.
+1. Open your **Supabase Project Dashboard → SQL Editor**.
+2. Run `sql/create_dse_market_snapshots.sql` to create the market snapshots table.
+3. Run `sql/create_ticker_max_dates_view.sql` to create the max date tracking view.
+4. Run `sql/create_price_alerts.sql` to create the alerts table and Postgres notification trigger.
 
-1. Open your Supabase project dashboard.
-2. Navigate to the **SQL Editor** → **New query**.
-3. Create the main snapshots table by running the SQL in `sql/create_dse_market_snapshots.sql`.
-4. Create the tracker view (required by the backfill script) by running the SQL in `sql/create_ticker_max_dates_view.sql`.
+---
 
-### 2. Configure Environment Variables
+### 2. Set Up the Telegram Bot (3 Minutes)
 
-The scraper requires access to Supabase. Configure the following environment variables (locally in a `.env` file or via shell export):
+1. **Create Bot**: Message `@BotFather` on Telegram, send `/newbot`, and copy your **Bot Token**.
+2. **Deploy Edge Function**:
+   - Go to **Supabase Dashboard → Edge Functions** → Create function `telegram-bot`.
+   - Paste code from `supabase/functions/telegram-bot/index.ts`.
+   - Add Secret: `TELEGRAM_BOT_TOKEN = <your_bot_token>`.
+   - Copy the deployed function URL (e.g. `https://xyz.supabase.co/functions/v1/telegram-bot`).
+3. **Set Telegram Webhook**:
+   Open this URL in your browser:
+   `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://<YOUR_PROJECT_REF>.supabase.co/functions/v1/telegram-bot`
 
-- `SUPABASE_URL`: Your Supabase project API URL (e.g., `https://<project-ref>.supabase.co`).
-- `SUPABASE_SERVICE_ROLE_KEY`: The Supabase `service_role` API key (sensitive, bypasses RLS).
+---
 
-> [!WARNING]
-> Keep the `SUPABASE_SERVICE_ROLE_KEY` secret. Never commit it to version control or expose it publicly.
+### 3. Local Development
 
-### 3. Local Installation & Development
-
-To run the scrapers locally:
-
-1. **Clone the repository:**
+1. **Clone & Install Dependencies:**
    ```bash
-   git clone git@github.com:your-username/dse-market-poller.git
+   git clone https://github.com/your-username/dse-market-poller.git
    cd dse-market-poller
-   ```
-2. **Set up a virtual environment and install dependencies:**
-   ```bash
    python -m venv .venv
-   # On Windows:
-   .\.venv\Scripts\activate
-   # On macOS/Linux:
-   source .venv/bin/activate
-
-   pip install --upgrade pip
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
-3. **Run the scrapers:**
-   - For Intraday: `python intraday_scraper.py`
-   - For Historical Gaps: `python backfill_gaps.py`
-   - For CSV Seed Import: `python import_historical.py --file merged_data.csv`
+
+2. **Configure Environment Variables (`.env`):**
+   ```env
+   SUPABASE_URL=https://<your-project-ref>.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+   ```
+
+3. **Run Scrapers Locally:**
+   - **Intraday Scraper**: `python intraday_scraper.py`
+   - **Historical Backfill**: `python backfill_gaps.py`
 
 ---
 
-## Deployment & CI/CD with GitHub Actions
+## 🤖 GitHub Actions Automation
 
-The repository includes two GitHub Actions workflows designed to run entirely on autopilot:
+The project runs completely automated using 2 GitHub Actions workflows:
 
-1. **`scraper.yml`**: Runs `intraday_scraper.py` every 15 minutes strictly during BD Market Hours (4:00 AM - 8:30 AM UTC, Sun-Thu).
-2. **`intelligent_backfill.yml`**: Runs `backfill_gaps.py` once a day at 3:30 PM BD Time (9:30 AM UTC, Sun-Thu), one hour after the market closes.
+1. **`scraper.yml`**: Runs `intraday_scraper.py` every 15 minutes during BD Market Hours (4:00 AM – 8:30 AM UTC, Sun–Thu).
+2. **`intelligent_backfill.yml`**: Runs `backfill_gaps.py` daily at 3:30 PM BD Time to automatically fill missing historical market data.
 
-To enable these in your own GitHub repository:
-
-1. Go to your repository settings on GitHub.
-2. Navigate to **Settings** → **Secrets and variables** → **Actions**.
-3. Add the following repository secrets:
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-
-Once the secrets are added, the actions will seamlessly trigger on their schedule and keep your database perfectly in sync.
+To enable, add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to your **GitHub Repo Secrets**.
 
 ---
 
----
+## 📜 License
 
-## How to Access and Use the Scraped Data
-
-Once the data is saved in Supabase, you can easily use it as a data source in other tools. Here are the two most common setup methods:
-
-### Method 1: Connecting via PostgreSQL ODBC Driver (For AmiBroker)
-An ODBC connection allows AmiBroker to connect directly to your Supabase database and pull charts instantly.
-
-**1. Install the Correct Driver**
-* Check if your AmiBroker is 32-bit or 64-bit (shown on the splash screen).
-* Visit [psqlODBC Downloads](https://www.postgresql.org/ftp/odbc/versions/msi/) and download the exact MSI installer matching your AmiBroker architecture (e.g., `psqlodbc_..._x86.zip` for 32-bit AmiBroker).
-
-**2. Add a System DSN**
-* Search Windows for **ODBC Data Sources** (Make sure to open the 32-bit version if your AmiBroker is 32-bit).
-* Go to **System DSN** -> **Add...** -> **PostgreSQL Unicode**.
-* Fill in your connection parameters (found in Supabase under *Settings* -> *Database*):
-  * **Data Source**: `Supabase_DSE`
-  * **Server**: `db.<your project id>.supabase.co`
-  * **Port**: `5432`
-  * **Database**: `postgres`
-  * **User Name**: `postgres`
-  * **Password**: `[Your Database Password]`
-* Click the **Test** button. It must say "Connection successful". Click Save.
-
-**3. Configure AmiBroker Database Settings**
-* Open AmiBroker -> **File** -> **New** -> **Database**.
-* Set Data Source to **ODBC/SQL Universal Data Plug-in**.
-* Click **Configure** and follow these **CRITICAL** steps exactly:
-  1. **DO NOT** click the "Pick ODBC source..." button. It generates bad strings.
-  2. Paste this exact string into the **Database (ODBC connection string)** box:
-     ```text
-     DSN=Supabase_DSE;Uid=postgres;Pwd=[Your Password];
-     ```
-  3. Set **Table name** to exactly: `dse_market_snapshots`
-  4. Change the dropdown fields in the **Field names (case sensitive)** section to match PostgreSQL's lowercase schema:
-     * **Symbol**: `ticker`
-     * **Date/Time**: `date`
-     * **Open**: `open`
-     * **High**: `high`
-     * **Low**: `low`
-     * **Close**: `close`
-     * **Volume**: `volume`
-     * **Open Int**: *(Leave blank)*
-  5. **UNCHECK** the "Use custom queries" box at the bottom.
-* Click **OK**, then click **Retrieve symbols**. Your charts will now load!
-
-### Method 2: Accessing via Auto-Generated REST API
-Supabase generates a REST API for you out of the box.
-
-* **Base URL**: `https://<your-project-id>.supabase.co/rest/v1/dse_market_snapshots`
-* **Query Format**: Send a `GET` request with your `apikey` and `Authorization` headers:
-  ```bash
-  curl -X GET "https://<your-project-id>.supabase.co/rest/v1/dse_market_snapshots?ticker=eq.00DSEX&order=date.desc&limit=10" \
-       -H "apikey: <YOUR_ANON_KEY>" \
-       -H "Authorization: Bearer <YOUR_ANON_KEY>"
-  ```
-* **Python Integration**:
-  ```python
-  import requests
-  url = "https://eepwcezwzzlnzqowniyd.supabase.co/rest/v1/dse_market_snapshots"
-  headers = { "apikey": "YOUR_ANON_KEY", "Authorization": "Bearer YOUR_ANON_KEY" }
-  params = { "ticker": "eq.00DSEX", "order": "date.desc", "limit": 10 }
-  response = requests.get(url, headers=headers, params=params).json()
-  ```
-
----
-
-## License
-
-This project is licensed under the Apache License 2.0. See the [LICENSE](LICENSE) file for details.
+This project is open source and available under the [MIT License](LICENSE).
