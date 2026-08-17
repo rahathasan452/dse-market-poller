@@ -80,7 +80,7 @@ To run the scrapers locally:
 
 The repository includes two GitHub Actions workflows designed to run entirely on autopilot:
 
-1. **`scraper.yml`**: Runs `intraday_scraper.py` every 5 minutes strictly during BD Market Hours (4:00 AM - 8:30 AM UTC, Sun-Thu).
+1. **`scraper.yml`**: Runs `intraday_scraper.py` every 15 minutes strictly during BD Market Hours (4:00 AM - 8:30 AM UTC, Sun-Thu).
 2. **`intelligent_backfill.yml`**: Runs `backfill_gaps.py` once a day at 3:30 PM BD Time (9:30 AM UTC, Sun-Thu), one hour after the market closes.
 
 To enable these in your own GitHub repository:

@@ -41,10 +41,20 @@ def upsert_snapshots(client, df, chunk_name=""):
             high_price = float(str(row.get('high', '0')).replace(',', ''))
             low_price = float(str(row.get('low', '0')).replace(',', ''))
             
-            # Use 'ltp' if 'close' is missing (for intraday vs EOD differences)
-            close_val = row.get('close') if 'close' in row and pd.notnull(row['close']) else row.get('ltp', '0')
-            close_price = float(str(close_val).replace(',', ''))
-            
+            # Use 'ltp' if 'close' is missing or 0.0 (intraday bdshare data has close=0.0)
+            close_val = row.get('close')
+            try:
+                close_price = float(str(close_val).replace(',', ''))
+            except (ValueError, TypeError):
+                close_price = 0.0
+
+            if close_price <= 0:
+                ltp_val = row.get('ltp', '0')
+                try:
+                    close_price = float(str(ltp_val).replace(',', ''))
+                except (ValueError, TypeError):
+                    close_price = 0.0
+
             if close_price <= 0:
                 continue
                 
