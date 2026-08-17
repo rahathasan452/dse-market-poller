@@ -29,7 +29,11 @@ RETURNS TRIGGER AS $$
 DECLARE
     alert_rec RECORD;
     -- Set your Telegram Bot Token here for pg_net trigger:
+<<<<<<< HEAD
     telegram_bot_token TEXT := 'YOUR_TELEGRAM_BOT_TOKEN';
+=======
+    telegram_bot_token TEXT := '8878847897:AAFVdB0Pc4BAQbbwwShwQXRsLuycATKvQPI';
+>>>>>>> 614c8fb43bde166b23a599a33440d21cb580b57a
     msg TEXT;
     symbol TEXT;
 BEGIN
