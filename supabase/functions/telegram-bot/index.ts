@@ -91,7 +91,6 @@ Deno.serve(async (req: Request) => {
         const ticker = dataStr.replace("PRICE_", "");
         await fetchPriceAndReply(chatId, ticker);
       } else if (dataStr.startsWith("ADD_")) {
-        // Format: ADD_TICKER_VAL1_VAL2
         const parts = dataStr.split("_");
         const ticker = parts[1];
         const val1 = parseFloat(parts[2]);
@@ -127,7 +126,9 @@ Available Commands:
 
 📋 *Manage Alerts:*
   🔹 \`/list\` — View all your active alerts
-  🔹 \`/del <ALERT_ID>\` — Delete an alert (e.g. \`/del 4\`)
+  🔹 \`/del 4 5 6\` — Delete multiple alerts by ID
+  🔹 \`/del GP\` — Delete all alerts for ticker GP
+  🔹 \`/del all\` — Delete all active alerts
 
 📊 *Market Quotes:*
   🔹 \`/price <TICKER>\` — Check live stock price (e.g. \`/price GP\`)`;
@@ -192,10 +193,8 @@ Available Commands:
       }
 
       if (!isNaN(val2)) {
-        // Dual Bracket Alert (Take Profit + Stop Loss)
         await processAddAlertCommand(chatId, inputTicker, val1, val2);
       } else {
-        // Single Alert
         const condition = explicitCondition || "ABOVE";
         await processAddAlertCommand(chatId, inputTicker, val1, NaN, condition);
       }
@@ -228,40 +227,99 @@ Available Commands:
         const label = alert.condition === "ABOVE" ? "Take Profit" : "Stop Loss";
         listMsg += `🆔 \`#${alert.id}\` | *${alert.ticker}* ${symbol} ${label} (${alert.condition}) *${alert.target_price} BDT*\n`;
       });
-      listMsg += "\nTo delete an alert, use: `/del <ALERT_ID>`";
+      listMsg += "\nDelete alerts:\n• `/del 4 5` (Multiple IDs)\n• `/del GP` (By Ticker)\n• `/del all` (Delete All)";
 
       await sendMessage(chatId, listMsg);
       return new Response("OK", { status: 200 });
     }
 
-    // Command: /del ALERT_ID
+    // Command: /del ALERT_ID(S) or TICKER or ALL
     if (command === "/del" || command === "/delete" || command === "/remove") {
       if (parts.length < 2) {
-        await sendMessage(chatId, "⚠️ *Invalid Format!*\nUse: `/del <ALERT_ID>`\nExample: `/del 5`");
+        await sendMessage(
+          chatId, 
+          "⚠️ *Invalid Format!*\n\n" +
+          "• *Multiple IDs:* `/del 4 5 6`\n" +
+          "• *By Ticker:* `/del GP`\n" +
+          "• *Delete All:* `/del all`"
+        );
         return new Response("OK", { status: 200 });
       }
 
-      const alertId = parseInt(parts[1], 10);
-      if (isNaN(alertId)) {
-        await sendMessage(chatId, "⚠️ *Invalid Alert ID!* Must be a number.");
+      const args = parts.slice(1);
+
+      if (args.length === 1 && args[0].toLowerCase() === "all") {
+        const { data, error } = await supabase
+          .from("price_alerts")
+          .update({ is_active: false })
+          .eq("recipient", chatId.toString())
+          .eq("is_active", true)
+          .select();
+
+        if (error) {
+          await sendMessage(chatId, `❌ Error deleting alerts: ${error.message}`);
+        } else if (!data || data.length === 0) {
+          await sendMessage(chatId, "ℹ️ You have no active alerts to delete.");
+        } else {
+          await sendMessage(chatId, `🗑️ *Removed all ${data.length} active price alert(s).*`);
+        }
         return new Response("OK", { status: 200 });
       }
 
-      const { data, error } = await supabase
-        .from("price_alerts")
-        .update({ is_active: false })
-        .eq("id", alertId)
-        .eq("recipient", chatId.toString())
-        .select();
+      const idList: number[] = [];
+      const nonNumeric: string[] = [];
 
-      if (error) {
-        await sendMessage(chatId, `❌ Error deleting alert: ${error.message}`);
-      } else if (!data || data.length === 0) {
-        await sendMessage(chatId, `⚠️ Alert \`#${alertId}\` not found or already deleted.`);
-      } else {
-        await sendMessage(chatId, `🗑️ *Alert \`#${alertId}\` (${data[0].ticker}) removed successfully.*`);
+      args.forEach((arg) => {
+        arg.split(",").forEach((item) => {
+          const clean = item.trim();
+          const id = parseInt(clean, 10);
+          if (!isNaN(id)) {
+            idList.push(id);
+          } else if (clean) {
+            nonNumeric.push(clean.toUpperCase());
+          }
+        });
+      });
+
+      if (idList.length > 0) {
+        const { data, error } = await supabase
+          .from("price_alerts")
+          .update({ is_active: false })
+          .in("id", idList)
+          .eq("recipient", chatId.toString())
+          .eq("is_active", true)
+          .select();
+
+        if (error) {
+          await sendMessage(chatId, `❌ Error deleting alerts: ${error.message}`);
+        } else if (!data || data.length === 0) {
+          await sendMessage(chatId, `⚠️ No active alerts found with IDs: \`${idList.join(", ")}\`.`);
+        } else {
+          const deletedItems = data.map((d: any) => `#${d.id} (${d.ticker})`).join(", ");
+          await sendMessage(chatId, `🗑️ *Deleted ${data.length} alert(s):* ${deletedItems}`);
+        }
+        return new Response("OK", { status: 200 });
       }
-      return new Response("OK", { status: 200 });
+
+      if (nonNumeric.length > 0) {
+        const ticker = nonNumeric[0];
+        const { data, error } = await supabase
+          .from("price_alerts")
+          .update({ is_active: false })
+          .eq("ticker", ticker)
+          .eq("recipient", chatId.toString())
+          .eq("is_active", true)
+          .select();
+
+        if (error) {
+          await sendMessage(chatId, `❌ Error deleting alerts for ${ticker}: ${error.message}`);
+        } else if (!data || data.length === 0) {
+          await sendMessage(chatId, `⚠️ No active alerts found for ticker \`${ticker}\`.`);
+        } else {
+          await sendMessage(chatId, `🗑️ *Removed ${data.length} active alert(s) for ticker \`${ticker}\`.*`);
+        }
+        return new Response("OK", { status: 200 });
+      }
     }
 
     // Command: /price TICKER
@@ -285,7 +343,7 @@ Available Commands:
   }
 });
 
-// Helper: Process single or dual (Take Profit + Stop Loss) alert commands
+// Helper: Process single or dual alert commands with Instant Evaluation
 async function processAddAlertCommand(
   chatId: number | string, 
   ticker: string, 
@@ -293,49 +351,68 @@ async function processAddAlertCommand(
   val2: number = NaN, 
   explicitCondition: string = "ABOVE"
 ) {
-  // Case 1: Dual Bracket Alert (Take Profit & Stop Loss in one command)
+  // Fetch current price snapshot to check if target is ALREADY met!
+  const { data: priceData } = await supabase
+    .from("dse_market_snapshots")
+    .select("close, date")
+    .eq("ticker", ticker)
+    .order("date", { ascending: false })
+    .limit(1);
+
+  const currentPrice = priceData && priceData.length > 0 ? parseFloat(priceData[0].close) : null;
+
+  // Case 1: Dual Bracket Alert
   if (!isNaN(val2)) {
     const highPrice = Math.max(val1, val2); // Take Profit (ABOVE)
     const lowPrice = Math.min(val1, val2);  // Stop Loss (BELOW)
 
+    const tpTriggered = currentPrice !== null && currentPrice >= highPrice;
+    const slTriggered = currentPrice !== null && currentPrice <= lowPrice;
+
     // Insert Take Profit
-    const { data: tpData, error: tpError } = await supabase.from("price_alerts").insert({
+    const { data: tpData } = await supabase.from("price_alerts").insert({
       ticker: ticker,
       target_price: highPrice,
       condition: "ABOVE",
       recipient: chatId.toString(),
-      is_active: true
+      is_active: !tpTriggered,
+      last_triggered_at: tpTriggered ? new Date().toISOString() : null
     }).select().single();
 
     // Insert Stop Loss
-    const { data: slData, error: slError } = await supabase.from("price_alerts").insert({
+    const { data: slData } = await supabase.from("price_alerts").insert({
       ticker: ticker,
       target_price: lowPrice,
       condition: "BELOW",
       recipient: chatId.toString(),
-      is_active: true
+      is_active: !slTriggered,
+      last_triggered_at: slTriggered ? new Date().toISOString() : null
     }).select().single();
 
-    if (tpError || slError) {
-      await sendMessage(chatId, `❌ *Error setting dual alert:* ${tpError?.message || slError?.message}`);
-    } else {
-      const msg = 
-`🎯 *Dual Bracket Alert Created for ${ticker}!*
-
-📈 *Take Profit (ABOVE):* *${highPrice} BDT* (ID: \`#${tpData.id}\`)
-📉 *Stop Loss (BELOW):* *${lowPrice} BDT* (ID: \`#${slData.id}\`)`;
-      await sendMessage(chatId, msg);
+    let msg = `🎯 *Dual Bracket Alert Configured for ${ticker}!*\n\n`;
+    msg += `📈 *Take Profit (ABOVE ${highPrice} BDT):* ${tpTriggered ? "🚨 *TRIGGERED IMMEDIATELY!*" : `Active (ID: \`#${tpData?.id}\`)`}\n`;
+    msg += `📉 *Stop Loss (BELOW ${lowPrice} BDT):* ${slTriggered ? "🚨 *TRIGGERED IMMEDIATELY!*" : `Active (ID: \`#${slData?.id}\`)`}\n\n`;
+    if (currentPrice !== null) {
+      msg += `💰 *Current Price:* *${currentPrice} BDT*`;
     }
+
+    await sendMessage(chatId, msg);
     return;
   }
 
   // Case 2: Single Alert
+  const isTriggeredNow = currentPrice !== null && (
+    (explicitCondition === "ABOVE" && currentPrice >= val1) ||
+    (explicitCondition === "BELOW" && currentPrice <= val1)
+  );
+
   const { data, error } = await supabase.from("price_alerts").insert({
     ticker: ticker,
     target_price: val1,
     condition: explicitCondition,
     recipient: chatId.toString(),
-    is_active: true
+    is_active: !isTriggeredNow,
+    last_triggered_at: isTriggeredNow ? new Date().toISOString() : null
   }).select().single();
 
   if (error) {
@@ -343,10 +420,23 @@ async function processAddAlertCommand(
   } else {
     const symbol = explicitCondition === "ABOVE" ? "📈" : "📉";
     const label = explicitCondition === "ABOVE" ? "Take Profit" : "Stop Loss";
-    await sendMessage(
-      chatId, 
-      `✅ *Alert Created!* ${symbol}\n\n📌 *Stock:* \`${ticker}\`\n🎯 *${label}:* *${val1} BDT* (${explicitCondition})\n🆔 *Alert ID:* \`#${data.id}\``
-    );
+
+    if (isTriggeredNow) {
+      const instantMsg = 
+`🚨 *INSTANT PRICE ALERT TRIGGERED!* ${symbol}
+
+📌 *Stock:* \`${ticker}\`
+💰 *Current Price:* *${currentPrice} BDT*
+🎯 *Target (${label}):* *${val1} BDT* (${explicitCondition})
+
+_The current market price already satisfies your target!_`;
+      await sendMessage(chatId, instantMsg);
+    } else {
+      await sendMessage(
+        chatId, 
+        `✅ *Alert Created!* ${symbol}\n\n📌 *Stock:* \`${ticker}\`\n🎯 *${label}:* *${val1} BDT* (${explicitCondition})\n🆔 *Alert ID:* \`#${data.id}\`\n💰 *Current Price:* *${currentPrice ?? "-"} BDT*`
+      );
+    }
   }
 }
 
