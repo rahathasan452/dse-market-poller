@@ -15,20 +15,14 @@ logger = logging.getLogger(__name__)
 
 def get_true_market_date() -> str:
     """
-    Scrapes the DSE homepage to find the exact date the current market data belongs to.
-    This prevents assigning today's date if the script is run manually before the market opens.
+    Returns the current date in Bangladesh timezone (Asia/Dhaka).
+    Live intraday trade data belongs to today's date in BD time.
     """
     try:
-        from bdshare import get_market_info
-        market_info = get_market_info()
-        if not market_info.empty:
-            raw_date = market_info.iloc[0]['Date']
-            dt = datetime.strptime(raw_date, '%d-%m-%Y')
-            return dt.strftime('%Y-%m-%d')
-    except Exception as e:
-        logger.warning(f"Could not fetch true market date, falling back to system date: {e}")
-    
-    return datetime.today().strftime('%Y-%m-%d')
+        import zoneinfo
+        return datetime.now(zoneinfo.ZoneInfo("Asia/Dhaka")).strftime('%Y-%m-%d')
+    except Exception:
+        return datetime.now().strftime('%Y-%m-%d')
 
 def fetch_intraday_ohlcv() -> pd.DataFrame:
     """
